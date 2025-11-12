@@ -1,0 +1,77 @@
+# Purpose: This script automates the download and verification of large machine learning models.
+# In a professional workflow, large model files are stored in a dedicated repository (like Git LFS,
+# an S3 bucket, or a dedicated server) rather than directly in the main code repository.
+# This script ensures that the correct, verified models are present for a build.
+# To be renamed to sync_models.sh and made executable (chmod +x).
+
+#!/usr/bin/env bash
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
+# --- Configuration ---
+# In a real project, this URL would point to your secure model storage.
+BASE_MODEL_URL="https://storage.googleapis.com/oniria-models-repo/v4.3"
+# The local directory where models should be placed for the Android build.
+ASSETS_DIR="app/src/main/assets/models"
+
+# --- Model Definitions ---
+# Each model has a filename, and a SHA256 checksum to ensure integrity.
+declare -A MODELS
+MODELS=(
+    ["intent_classifier.tflite"]="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" # Placeholder checksum
+    ["oniria-llm-7b-q4_0.gguf"]="da58914d68d18408e06f8564a51f8d4f4007fbf86b1f3a8bca01e74f63c89b88" # Placeholder checksum
+    ["gesture_recognizer.task"]="c1a2d21f82f23b2c1f26da7d63d6621c17293049b6b66e3e4a2d8a4e8d8c2b7e" # Placeholder checksum
+)
+
+# --- Helper Function ---
+# Downloads a file and verifies its checksum.
+download_and_verify() {
+    local filename=$1
+    local expected_checksum=$2
+    local remote_url="${BASE_MODEL_URL}/${filename}"
+    local local_path="${ASSETS_DIR}/${filename}"
+
+    echo "Processing ${filename}..."
+
+    # Create the assets directory if it doesn't exist.
+    mkdir -p "$(dirname "${local_path}")"
+
+    if [ -f "${local_path}" ]; then
+        echo "  - File already exists. Verifying checksum..."
+        local_checksum=$(sha256sum "${local_path}" | awk '{ print $1 }')
+        if [ "${local_checksum}" == "${expected_checksum}" ]; then
+            echo "  - Checksum OK. Skipping download."
+            return 0
+        else
+            echo "  - Checksum mismatch. Re-downloading."
+            rm "${local_path}"
+        fi
+    fi
+
+    echo "  - Downloading from ${remote_url}..."
+    # Use curl for compatibility. -L follows redirects, -s is silent, -o is output.
+    curl -Lso "${local_path}" "${remote_url}"
+
+    echo "  - Verifying checksum of downloaded file..."
+    local_checksum=$(sha256sum "${local_path}" | awk '{ print $1 }')
+
+    if [ "${local_checksum}" == "${expected_checksum}" ]; then
+        echo "  - Download successful and checksum verified."
+    else
+        echo "  - ERROR: Checksum mismatch for ${filename}!"
+        echo "    Expected: ${expected_checksum}"
+        echo "    Got:      ${local_checksum}"
+        rm "${local_path}" # Clean up corrupted file
+        exit 1
+    fi
+}
+
+# --- Main Execution ---
+echo "🚀 Starting model synchronization for OnirIA 4.3..."
+
+for filename in "${!MODELS[@]}"; do
+    checksum=${MODELS[$filename]}
+    download_and_verify "$filename" "$checksum"
+done
+
+echo "🎉 All models are synchronized and verified."
