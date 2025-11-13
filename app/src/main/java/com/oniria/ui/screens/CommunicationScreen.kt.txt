@@ -3,11 +3,18 @@
 // a grid of quick-access phrases, and the new Auditory Accessibility Mode.
 package com.oniria.ui.screens
 
+import android.Manifest
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Spellcheck
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,21 +28,34 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.oniria.viewmodels.IntentionViewModel
 
 val commonPhrases = listOf(
     "Hola", "Adiós", "Gracias", "Por favor",
-    "Tengo hambre", "Tengo sed", "Necesito ayuda", "¿Puedes venir?"
+    "Tengo hambre", "Tengo sed", "Necesito ayuda", "¿Puedes venir?",
+    "Sí", "No", "No lo sé", "Espera un momento"
 )
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CommunicationScreen(
     viewModel: IntentionViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val audioPermissionState = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
+
 
     if (uiState.isHearingModeEnabled) {
-        HearingModeUI(transcribedText = uiState.transcribedText)
+        if (audioPermissionState.status.isGranted) {
+            HearingModeUI(transcribedText = uiState.transcribedText)
+        } else {
+            RequestAudioPermissionUI {
+                audioPermissionState.launchPermissionRequest()
+            }
+        }
     } else {
         StandardModeUI(viewModel = viewModel)
     }
@@ -48,8 +68,8 @@ fun StandardModeUI(viewModel: IntentionViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Main text display and input area
         OutlinedTextField(
@@ -58,72 +78,86 @@ fun StandardModeUI(viewModel: IntentionViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            textStyle = TextStyle(fontSize = 28.sp),
-            label = { Text("Escribe o selecciona una frase") }
+            textStyle = TextStyle(fontSize = 24.sp),
+            placeholder = { Text("Escribe o selecciona una frase...") },
+            isError = uiState.errorMessage != null
         )
 
-        // Action Buttons Row
+        AnimatedVisibility(visible = uiState.errorMessage != null) {
+            Text(
+                text = uiState.errorMessage ?: "",
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        }
+
+        // Action Buttons Grid
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
+                ActionButton(
+                    text = if (uiState.isSpeaking) "Hablando..." else "Hablar",
+                    icon = Icons.Default.VolumeUp,
                     onClick = { viewModel.onSpeakClicked() },
                     enabled = !uiState.isSpeaking && uiState.currentText.isNotBlank(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (uiState.isSpeaking) "Hablando..." else "Hablar", fontSize = 18.sp)
-                }
-                Button(
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                ActionButton(
+                    text = "Limpiar",
+                    icon = Icons.Default.Clear,
                     onClick = { viewModel.onClearClicked() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Limpiar", fontSize = 18.sp)
-                }
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.secondary
+                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
+                ActionButton(
+                    text = "Corregir (IA)",
+                    icon = Icons.Default.Spellcheck,
                     onClick = { viewModel.onCorrectTextClicked() },
                     enabled = !uiState.isProcessing && uiState.currentText.isNotBlank(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Corregir (IA)", fontSize = 18.sp)
-                }
-                Button(
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+                ActionButton(
+                    text = "Reformular (IA)",
+                    icon = Icons.Default.AutoAwesome,
                     onClick = { viewModel.onRephraseClicked() },
                     enabled = !uiState.isProcessing && uiState.currentText.isNotBlank(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                     Text("Reformular (IA)", fontSize = 18.sp)
-                }
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.tertiary
+                )
             }
              if (uiState.isProcessing) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top=8.dp))
+                LinearProgressIndicator(modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp))
             }
         }
-        
-        Divider()
 
         // Grid of common phrases
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 150.dp),
-            modifier = Modifier.weight(1f),
+            columns = GridCells.Adaptive(minSize = 140.dp),
+            modifier = Modifier.weight(0.8f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(top = 8.dp)
         ) {
             items(commonPhrases) { phrase ->
-                Button(
+                FilledTonalButton(
                     onClick = { viewModel.onPhraseSelected(phrase) },
-                    modifier = Modifier.fillMaxWidth().height(80.dp)
+                    modifier = Modifier.height(60.dp)
                 ) {
-                    Text(phrase, fontSize = 18.sp, textAlign = TextAlign.Center)
+                    Text(phrase, textAlign = TextAlign.Center)
                 }
             }
         }
@@ -131,21 +165,70 @@ fun StandardModeUI(viewModel: IntentionViewModel) {
 }
 
 @Composable
+fun ActionButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    color: Color
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(56.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = color)
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, fontSize = 16.sp)
+    }
+}
+
+
+@Composable
 fun HearingModeUI(transcribedText: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = transcribedText,
-            color = Color.White,
-            fontSize = 48.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 42.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            lineHeight = 60.sp
+            lineHeight = 54.sp
         )
+    }
+}
+
+@Composable
+fun RequestAudioPermissionUI(onRequestPermission: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            "Permiso de Micrófono Requerido",
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "El modo de accesibilidad auditiva necesita acceso a tu micrófono para transcribir el sonido ambiente a texto.",
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onRequestPermission) {
+            Text("Otorgar Permiso")
+        }
     }
 }

@@ -25,11 +25,11 @@ sealed class AiResult {
 @Singleton
 class GeminiService @Inject constructor() {
 
-    // Initialize the Gemini Pro model.
+    // Initialize the Gemini Flash model for faster, more responsive interactions suitable for an assistive app.
     // API key should be stored securely in local.properties and accessed via BuildConfig.
     private val generativeModel: GenerativeModel by lazy {
         GenerativeModel(
-            modelName = "gemini-2.5-pro", // Using the recommended model for complex text tasks.
+            modelName = "gemini-2.5-flash", 
             apiKey = BuildConfig.API_KEY
         )
     }

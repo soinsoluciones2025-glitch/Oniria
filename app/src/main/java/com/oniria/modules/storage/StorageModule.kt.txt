@@ -1,3 +1,4 @@
+
 // Purpose: Provides application-wide dependencies using the Hilt dependency injection framework.
 // This module is responsible for constructing and providing singleton instances of services,
 // databases, and other core components, making them available for injection throughout the app.
@@ -10,6 +11,7 @@ import com.oniria.data.PreferencesRepository
 import com.oniria.modules.expression.SpeechSynthesizer
 import com.oniria.modules.perception.GestureDetector
 import com.oniria.modules.perception.VoiceInputManager
+import com.oniria.modules.sync.GeminiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -58,6 +60,12 @@ object StorageModule {
                 // TTS failed to initialize
             }
         }
+    }
+
+    @Provides
+    @Singleton
+    fun provideGeminiService(): GeminiService {
+        return GeminiService()
     }
 
     // --- Database placeholder ---

@@ -1,7 +1,8 @@
 {
   "name": "OnirIA - AI Communicator",
-  "description": "An intuitive and assistive web application designed to help individuals with communication difficulties read, write, and speak using the power of AI. Features large buttons, voice commands, text-to-speech, and speech-to-text.",
+  "description": "An intuitive and assistive native Android application designed to help individuals with communication difficulties read, write, and speak using the power of AI. Built with Kotlin and Jetpack Compose.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

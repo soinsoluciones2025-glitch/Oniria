@@ -1,8 +1,9 @@
+
 // Purpose: The central ViewModel of the OnirIA application, acting as the "brain".
 // It holds the application's state, fuses inputs from perception modules (like GestureDetector),
 // and triggers actions in execution modules (like SpeechSynthesizer and GeminiService).
 // Corresponds to the 'intention' module in the OnirIA 4.5 architecture.
-package com.oniria.viewmodels
+package com.oniria.modules.intention
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,6 +14,7 @@ import com.oniria.modules.perception.GestureDetector
 import com.oniria.modules.perception.VoiceInputManager
 import com.oniria.modules.sync.AiResult
 import com.oniria.modules.sync.GeminiService
+import com.oniria.viewmodels.CommunicationUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,6 +86,8 @@ class IntentionViewModel @Inject constructor(
             }
         }
     }
+
+
 
     private fun observeGestures() {
         viewModelScope.launch {

@@ -1,4 +1,3 @@
-
 // Purpose: A Jetpack Compose screen that displays the live camera feed for gesture recognition.
 // It handles camera permissions, shows the camera preview, and overlays the name of the
 // detected gesture in real-time.

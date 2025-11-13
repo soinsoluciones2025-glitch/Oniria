@@ -1,4 +1,3 @@
-
 // Purpose: A placeholder screen for the Tutor module.
 // This screen would contain tutorials and exercises to help users learn
 // the gestures and functionalities of the OnirIA application.
