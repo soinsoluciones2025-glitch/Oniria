@@ -1,0 +1,87 @@
+// Purpose: Provides application-wide dependencies using the Hilt dependency injection framework.
+// This module is responsible for constructing and providing singleton instances of services,
+// databases, and other core components, making them available for injection throughout the app.
+// Corresponds to the 'storage' layer and general dependency setup in the OnirIA 4.5 architecture.
+package com.oniria.modules.storage
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.oniria.data.PreferencesRepository
+import com.oniria.modules.expression.SpeechSynthesizer
+import com.oniria.modules.perception.GestureDetector
+import com.oniria.modules.perception.VoiceInputManager
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object StorageModule {
+
+    @Provides
+    @Singleton
+    fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
+        return context.getSharedPreferences("oniria_prefs", Context.MODE_PRIVATE)
+    }
+
+    @Provides
+    @Singleton
+    fun providePreferencesRepository(sharedPreferences: SharedPreferences): PreferencesRepository {
+        return PreferencesRepository(sharedPreferences)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideGestureDetector(@ApplicationContext context: Context): GestureDetector {
+        return GestureDetector(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideVoiceInputManager(@ApplicationContext context: Context): VoiceInputManager {
+        // A real implementation would require the RECORD_AUDIO permission.
+        return VoiceInputManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSpeechSynthesizer(@ApplicationContext context: Context): SpeechSynthesizer {
+        // The onReady callback can be used to update a global state if needed,
+        // but for now, we'll just log it.
+        return SpeechSynthesizer(context) { isReady ->
+            if (isReady) {
+                // TTS is ready
+            } else {
+                // TTS failed to initialize
+            }
+        }
+    }
+
+    // --- Database placeholder ---
+    // In a full app, you would define your Room entities and DAOs.
+    // The architecture mentions encryption, which would be configured here.
+    /*
+    @Provides
+    @Singleton
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+        // val passphrase = getPassphrase() // Securely retrieve the passphrase
+        // val factory = SupportFactory(passphrase.toByteArray())
+        return Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            "oniria_database_encrypted"
+        )
+        // .openHelperFactory(factory) // Enable encryption
+        .fallbackToDestructiveMigration()
+        .build()
+    }
+
+    @Provides
+    fun providePhraseHistoryDao(database: AppDatabase): PhraseHistoryDao {
+        return database.phraseHistoryDao()
+    }
+    */
+}

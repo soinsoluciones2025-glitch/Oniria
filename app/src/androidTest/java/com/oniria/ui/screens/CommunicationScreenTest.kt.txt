@@ -1,0 +1,65 @@
+// Purpose: An instrumented test suite for the CommunicationScreen Composable.
+// This class verifies that the UI components of the main communication screen
+// are displayed correctly and behave as expected under various states.
+// It uses the Jetpack Compose testing framework.
+package com.oniria.ui.screens
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.oniria.ui.theme.OniriaTheme
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Instrumented test for [CommunicationScreen].
+ *
+ * NOTE: For a real application using Hilt, this would require setting up the
+ * Hilt test runner (`@HiltAndroidTest`) and a test rule (`@get:Rule var hiltRule = HiltAndroidRule(this)`).
+ * The ViewModel would then be injected automatically. For this isolated test,
+ * we focus on the UI's composition based on its initial state.
+ */
+@RunWith(AndroidJUnit4::class)
+class CommunicationScreenTest {
+
+    @get:Rule
+    val composeTestRule = createComposeRule()
+
+    @Test
+    fun communicationScreen_initialState_displaysAllElementsCorrectly() {
+        // 1. Set the content to the Composable under test.
+        composeTestRule.setContent {
+            OniriaTheme {
+                // In a real Hilt project, a test version of the ViewModel would be injected.
+                // Here, we rely on the default ViewModel state provided by hiltViewModel().
+                CommunicationScreen()
+            }
+        }
+
+        // 2. Verify the text field is present.
+        composeTestRule.onNodeWithText("Escribe o selecciona una frase").assertIsDisplayed()
+
+        // 3. Verify all action buttons are displayed.
+        val speakButtonNode = composeTestRule.onNodeWithText("Hablar")
+        val rephraseButtonNode = composeTestRule.onNodeWithText("Reformular (IA)")
+        val correctButtonNode = composeTestRule.onNodeWithText("Corregir (IA)")
+        val clearButtonNode = composeTestRule.onNodeWithText("Limpiar")
+
+        speakButtonNode.assertIsDisplayed()
+        rephraseButtonNode.assertIsDisplayed()
+        correctButtonNode.assertIsDisplayed()
+        clearButtonNode.assertIsDisplayed()
+
+        // 4. Verify that buttons requiring text are disabled initially.
+        speakButtonNode.assertIsNotEnabled()
+        rephraseButtonNode.assertIsNotEnabled()
+        correctButtonNode.assertIsNotEnabled()
+
+        // 5. Verify that the quick phrases grid is displayed by checking for a known phrase.
+        composeTestRule.onNodeWithText("Gracias").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Necesito ayuda").assertIsDisplayed()
+    }
+}

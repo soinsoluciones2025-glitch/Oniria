@@ -1,0 +1,87 @@
+// Purpose: Provides an interface to the Google Gemini API for advanced text processing.
+// This service handles the network requests for AI-powered features like rephrasing,
+// summarization, or generating suggestions. It's an optional, online-only component.
+// Corresponds to the 'execution' module in the OnirIA 4.5 architecture.
+package com.oniria.modules.sync
+
+import android.util.Log
+import com.google.ai.client.generativeai.GenerativeModel
+import com.oniria.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
+// Sealed class to represent the result of an AI operation.
+sealed class AiResult {
+    data class Success(val text: String) : AiResult()
+    data class Error(val message: String) : AiResult()
+}
+
+@Singleton
+class GeminiService @Inject constructor() {
+
+    // Initialize the Gemini Pro model.
+    // API key should be stored securely in local.properties and accessed via BuildConfig.
+    private val generativeModel: GenerativeModel by lazy {
+        GenerativeModel(
+            modelName = "gemini-2.5-pro", // Using the recommended model for complex text tasks.
+            apiKey = BuildConfig.API_KEY
+        )
+    }
+
+    /**
+     * Processes a given text with a specific instruction using the Gemini API.
+     * This function supports streaming to provide a more responsive user experience.
+     *
+     * @param instruction A prompt describing the task (e.g., "Rephrase this to be simpler").
+     * @param text The user's text to be processed.
+     * @return A Flow that emits the generated text chunks.
+     */
+    fun processTextStream(instruction: String, text: String): Flow<String> = flow {
+        if (text.isBlank()) {
+            emit("")
+            return@flow
+        }
+
+        val fullPrompt = "$instruction:\n\n\"$text\""
+
+        generativeModel.generateContentStream(fullPrompt)
+            .collect { chunk ->
+                chunk.text?.let { emit(it) }
+            }
+    }.catch { e ->
+        Log.e("GeminiService", "API call failed", e)
+        emit("[Error: No se pudo procesar el texto]")
+    }.flowOn(Dispatchers.IO) // Execute the network call on a background thread.
+
+
+    /**
+     * A non-streaming version of the text processing function.
+     *
+     * @param instruction A prompt describing the task.
+     * @param text The user's text to be processed.
+     * @return An AiResult sealed class instance.
+     */
+    suspend fun processText(instruction: String, text: String): AiResult = withContext(Dispatchers.IO) {
+        if (text.isBlank()) {
+            return@withContext AiResult.Success("")
+        }
+
+        val fullPrompt = "$instruction:\n\n\"$text\""
+
+        return@withContext try {
+            val response = generativeModel.generateContent(fullPrompt)
+            response.text?.let {
+                AiResult.Success(it.trim())
+            } ?: AiResult.Error("Recibí una respuesta vacía de la IA.")
+        } catch (e: Exception) {
+            Log.e("GeminiService", "API call failed", e)
+            AiResult.Error("Fallo al conectar con el servicio de IA. Revisa tu conexión a internet.")
+        }
+    }
+}

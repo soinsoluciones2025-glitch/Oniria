@@ -1,0 +1,129 @@
+
+// Purpose: A Jetpack Compose screen that displays the live camera feed for gesture recognition.
+// It handles camera permissions, shows the camera preview, and overlays the name of the
+// detected gesture in real-time.
+package com.oniria.ui.screens
+
+import android.Manifest
+import android.util.Log
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.oniria.modules.perception.GestureDetector
+import com.oniria.viewmodels.IntentionViewModel
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun GestureScreen(
+    viewModel: IntentionViewModel = hiltViewModel(),
+    gestureDetector: GestureDetector // Injected via Hilt from the activity/nav graph scope
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val gestureState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
+
+    // Handle the lifecycle of the gesture detector
+    DisposableEffect(lifecycleOwner) {
+        gestureDetector.startDetection(lifecycleOwner)
+        onDispose {
+            gestureDetector.stopDetection()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (cameraPermissionState.status.isGranted) {
+            CameraPreview(
+                modifier = Modifier.fillMaxSize(),
+                lifecycleOwner = lifecycleOwner
+            )
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("Camera permission is required to detect gestures.")
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { cameraPermissionState.launchPermissionRequest() }) {
+                    Text("Grant Permission")
+                }
+            }
+        }
+
+        // Overlay for displaying the detected gesture
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Gesto: ${gestureState.lastGesture.javaClass.simpleName}\n\"${gestureState.lastGesture.message}\"",
+                color = Color.White,
+                fontSize = 20.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+
+@Composable
+fun CameraPreview(
+    modifier: Modifier = Modifier,
+    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
+    scaleType: PreviewView.ScaleType = PreviewView.ScaleType.FILL_CENTER
+) {
+    val context = LocalContext.current
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+
+    AndroidView(
+        factory = { ctx ->
+            val previewView = PreviewView(ctx).apply { this.scaleType = scaleType }
+            val executor = ContextCompat.getMainExecutor(ctx)
+
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+                val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+
+                try {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                } catch (e: Exception) {
+                    Log.e("CameraPreview", "Use case binding failed", e)
+                }
+            }, executor)
+            
+            previewView
+        },
+        modifier = modifier
+    )
+}

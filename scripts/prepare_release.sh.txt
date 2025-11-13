@@ -1,0 +1,75 @@
+# Purpose: This script automates the full release process for the OnirIA Android app.
+# It ensures code quality, synchronizes necessary assets, and builds a signed,
+# production-ready Android App Bundle (.aab). It is designed to be run in a
+# CI/CD environment (like GitHub Actions, Jenkins, etc.).
+
+#!/usr/bin/env bash
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
+echo "🚀 Starting OnirIA release preparation script..."
+
+# --- Step 1: Run Code Quality Checks and Tests ---
+echo "✅ Step 1/4: Running static analysis and unit tests..."
+# Run lint to check for code quality issues. The `lint` task generates a report.
+./gradlew lintRelease
+# Run all unit tests for the release build variant.
+./gradlew testReleaseUnitTest
+
+echo "✅ Static analysis and unit tests passed."
+
+
+# --- Step 2: Synchronize and Prepare AI Models ---
+echo "✅ Step 2/4: Synchronizing and quantizing AI models..."
+# Ensure model sync/quantization scripts are executable
+chmod +x scripts/sync_models.sh
+chmod +x scripts/quantize_models.sh
+
+# Run the scripts to download/verify and then quantize the models for production
+bash scripts/sync_models.sh
+bash scripts/quantize_models.sh
+
+echo "✅ AI models are ready for release."
+
+
+# --- Step 3: Clean Previous Build Artifacts ---
+echo "✅ Step 3/4: Cleaning the project..."
+./gradlew clean
+
+echo "✅ Project cleaned."
+
+
+# --- Step 4: Build the Signed Android App Bundle ---
+echo "✅ Step 4/4: Assembling the release App Bundle..."
+# The `bundleRelease` task will build and sign the .aab file.
+# IMPORTANT: This assumes that you have configured signing information in your
+# app's build.gradle file and that the keystore and its credentials are
+# available to the CI environment (e.g., via environment variables or secure files).
+#
+# Example build.gradle config:
+#
+# android {
+#   ...
+#   signingConfigs {
+#     release {
+#       storeFile file(System.getenv("KEYSTORE_FILE"))
+#       storePassword System.getenv("KEYSTORE_PASSWORD")
+#       keyAlias System.getenv("KEY_ALIAS")
+#       keyPassword System.getenv("KEY_PASSWORD")
+#     }
+#   }
+#   buildTypes {
+#     release {
+#       signingConfig signingConfigs.release
+#       ...
+#     }
+#   }
+# }
+./gradlew bundleRelease
+
+echo "✅ Release bundle created successfully."
+echo "Find the output at: app/build/outputs/bundle/release/app-release.aab"
+
+
+# --- Final ---
+echo "🎉 OnirIA release preparation finished successfully!"

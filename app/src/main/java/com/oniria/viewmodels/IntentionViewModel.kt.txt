@@ -1,0 +1,210 @@
+// Purpose: The central ViewModel of the OnirIA application, acting as the "brain".
+// It holds the application's state, fuses inputs from perception modules (like GestureDetector),
+// and triggers actions in execution modules (like SpeechSynthesizer and GeminiService).
+// Corresponds to the 'intention' module in the OnirIA 4.5 architecture.
+package com.oniria.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.oniria.data.PreferencesRepository
+import com.oniria.modules.expression.SpeechSynthesizer
+import com.oniria.modules.perception.Gesture
+import com.oniria.modules.perception.GestureDetector
+import com.oniria.modules.perception.VoiceInputManager
+import com.oniria.modules.sync.AiResult
+import com.oniria.modules.sync.GeminiService
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+data class CommunicationUiState(
+    // Original state
+    val currentText: String = "",
+    val lastGesture: Gesture = Gesture.None,
+    val isSpeaking: Boolean = false,
+    val isProcessing: Boolean = false,
+    val errorMessage: String? = null,
+    
+    // State for Auditory Accessibility Module
+    val isHearingModeEnabled: Boolean = false,
+    val transcribedText: String = "Activa el modo auditivo para empezar a escuchar...",
+
+    // State for Voice Customization
+    val availableVoices: List<String> = emptyList(),
+    val selectedVoiceId: String? = null
+)
+
+@HiltViewModel
+class IntentionViewModel @Inject constructor(
+    private val gestureDetector: GestureDetector,
+    private val speechSynthesizer: SpeechSynthesizer,
+    private val geminiService: GeminiService,
+    private val voiceInputManager: VoiceInputManager,
+    private val preferencesRepository: PreferencesRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(CommunicationUiState())
+    val uiState: StateFlow<CommunicationUiState> = _uiState.asStateFlow()
+
+    init {
+        observeGestures()
+        observeSpeechStatus()
+        observeHearingModeSetting()
+        observeTranscription()
+        loadAvailableVoices()
+        observeVoiceSelection()
+    }
+    
+    private fun observeHearingModeSetting() {
+        preferencesRepository.isHearingModeEnabled
+            .onEach { isEnabled ->
+                _uiState.value = _uiState.value.copy(isHearingModeEnabled = isEnabled)
+                if (isEnabled) {
+                    voiceInputManager.startListening()
+                } else {
+                    voiceInputManager.stopListening()
+                }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    private fun observeTranscription() {
+        viewModelScope.launch {
+            voiceInputManager.transcriptionFlow.collect { text ->
+                if (_uiState.value.isHearingModeEnabled) {
+                    _uiState.value = _uiState.value.copy(transcribedText = text)
+                }
+            }
+        }
+    }
+
+    private fun observeGestures() {
+        viewModelScope.launch {
+            gestureDetector.gestureFlow
+                .distinctUntilChanged()
+                .collect { gesture ->
+                    _uiState.value = _uiState.value.copy(lastGesture = gesture)
+                    // If a significant gesture is detected, update the main text
+                    if (gesture !is Gesture.None) {
+                        updateText(gesture.message)
+                    }
+                }
+        }
+    }
+
+    private fun observeSpeechStatus() {
+        viewModelScope.launch {
+            speechSynthesizer.isSpeaking.collect { speaking ->
+                _uiState.value = _uiState.value.copy(isSpeaking = speaking)
+            }
+        }
+    }
+
+    private fun loadAvailableVoices() {
+        // A small delay can help ensure the TTS engine is fully initialized before we query it.
+        viewModelScope.launch {
+            delay(500)
+            val voices = speechSynthesizer.getAvailableVoices().map { it.name }
+            _uiState.value = _uiState.value.copy(availableVoices = voices)
+        }
+    }
+
+    private fun observeVoiceSelection() {
+        preferencesRepository.selectedVoiceId
+            .onEach { voiceId ->
+                _uiState.value = _uiState.value.copy(selectedVoiceId = voiceId)
+                voiceId?.let {
+                    speechSynthesizer.setVoice(it)
+                }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    fun onTextChanged(newText: String) {
+        _uiState.value = _uiState.value.copy(currentText = newText)
+    }
+
+    fun onPhraseSelected(phrase: String) {
+        updateText(phrase)
+        speakText(phrase)
+    }
+
+    fun onSpeakClicked() {
+        speakText(_uiState.value.currentText)
+    }
+
+    fun onStopSpeakingClicked() {
+        speechSynthesizer.stop()
+    }
+
+    fun onClearClicked() {
+        _uiState.value = _uiState.value.copy(currentText = "")
+    }
+
+    fun onRephraseClicked() {
+        val textToRephrase = _uiState.value.currentText
+        if (textToRephrase.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isProcessing = true)
+            val instruction = "Reformula el siguiente texto para que sea más educado y claro"
+            when (val result = geminiService.processText(instruction, textToRephrase)) {
+                is AiResult.Success -> updateText(result.text)
+                is AiResult.Error -> {
+                    _uiState.value = _uiState.value.copy(errorMessage = result.message)
+                }
+            }
+            _uiState.value = _uiState.value.copy(isProcessing = false)
+        }
+    }
+    
+    fun onCorrectTextClicked() {
+        val textToCorrect = _uiState.value.currentText
+        if (textToCorrect.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isProcessing = true)
+            val instruction = "Corrige la gramática y la ortografía del siguiente texto. El autor puede tener dificultades para escribir, así que prioriza interpretar la intención fonética o conceptual. No cambies el significado."
+            when (val result = geminiService.processText(instruction, textToCorrect)) {
+                is AiResult.Success -> updateText(result.text)
+                is AiResult.Error -> {
+                    _uiState.value = _uiState.value.copy(errorMessage = result.message)
+                }
+            }
+            _uiState.value = _uiState.value.copy(isProcessing = false)
+        }
+    }
+
+    /**
+     * Toggles the Auditory Accessibility Mode on or off.
+     * This will be called from the Settings screen.
+     */
+    fun onHearingModeChanged(isEnabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setHearingMode(isEnabled)
+        }
+    }
+    
+    fun onVoiceSelected(voiceId: String) {
+        viewModelScope.launch {
+            preferencesRepository.setVoice(voiceId)
+        }
+    }
+
+    private fun speakText(text: String) {
+        if (text.isNotBlank()) {
+            speechSynthesizer.speak(text)
+        }
+    }
+
+    private fun updateText(text: String) {
+         _uiState.value = _uiState.value.copy(currentText = text)
+    }
+}

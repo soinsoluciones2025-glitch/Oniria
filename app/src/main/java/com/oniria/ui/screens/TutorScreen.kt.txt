@@ -1,0 +1,38 @@
+
+// Purpose: A placeholder screen for the Tutor module.
+// This screen would contain tutorials and exercises to help users learn
+// the gestures and functionalities of the OnirIA application.
+package com.oniria.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+
+@Composable
+fun TutorScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Módulo de Tutor",
+            style = MaterialTheme.typography.headlineMedium
+        )
+        Text(
+            text = "Esta sección contendrá tutoriales interactivos para aprender a usar los gestos de la aplicación.",
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+    }
+}

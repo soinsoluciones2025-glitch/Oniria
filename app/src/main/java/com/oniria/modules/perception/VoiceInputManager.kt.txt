@@ -1,0 +1,66 @@
+// Purpose: Manages microphone input for real-time speech-to-text transcription.
+// This is the core component of the Auditory Accessibility Module (AAM).
+// In a real application, this class would interface with an on-device STT model
+// (like the stt_model.tflite mentioned in the architecture).
+// For this implementation, we will simulate transcription to demonstrate the data flow.
+package com.oniria.modules.perception
+
+import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+class VoiceInputManager(private val context: Context) {
+
+    private val _transcriptionFlow = MutableStateFlow("...")
+    val transcriptionFlow: Flow<String> = _transcriptionFlow
+
+    private val simulationScope = CoroutineScope(Dispatchers.Default + Job())
+    private var simulationJob: Job? = null
+
+    private val simulatedPhrases = listOf(
+        "Hola, ¿cómo estás?",
+        "Creo que es una gran idea.",
+        "Podríamos ir al parque más tarde.",
+        "No te olvides de llamar a tu madre.",
+        "El tiempo hoy es soleado.",
+        "¿Qué te gustaría comer para la cena?",
+        "La reunión es a las tres de la tarde."
+    )
+
+    /**
+     * Starts the (simulated) listening and transcription process.
+     */
+    fun startListening() {
+        if (simulationJob?.isActive == true) {
+            return // Already listening
+        }
+        Log.i("VoiceInputManager", "Starting to listen...")
+        simulationJob = simulationScope.launch {
+            var index = 0
+            while (isActive) {
+                _transcriptionFlow.value = simulatedPhrases[index % simulatedPhrases.size]
+                index++
+                delay(3000) // Emit a new phrase every 3 seconds
+            }
+        }
+    }
+
+    /**
+     * Stops the listening and transcription process.
+     */
+    fun stopListening() {
+        if (simulationJob?.isActive == true) {
+            Log.i("VoiceInputManager", "Stopping listening.")
+            simulationJob?.cancel()
+            simulationJob = null
+            _transcriptionFlow.value = "Modo auditivo desactivado."
+        }
+    }
+}

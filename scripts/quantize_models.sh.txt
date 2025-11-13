@@ -1,0 +1,53 @@
+# Purpose: This script automates the quantization of machine learning models.
+# Quantization reduces the model's size and improves inference speed on mobile devices
+# by converting floating-point weights to lower-precision integers (e.g., int8).
+# This is a critical step for deploying efficient on-device AI in OnirIA 4.5.
+
+#!/usr/bin/env bash
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
+echo "🚀 Starting model quantization process for OnirIA..."
+
+# --- TFLite Model Quantization (e.g., Intent Classifier) ---
+# This assumes you have an ONNX or Keras model and the TensorFlow Lite converter installed.
+echo "1/2: Quantizing Intent Classifier to TFLite (int8)..."
+if [ -f "models/source/intent_classifier.onnx" ]; then
+    # In a real project, you would use the `tflite_convert` tool or a Python script.
+    # This is a placeholder for that process.
+    python3 models/conversion_scripts/to_tflite.py \
+        --input_model="models/source/intent_classifier.onnx" \
+        --output_model="app/src/main/assets/models/intent_classifier.tflite" \
+        --quantize="int8"
+    echo "✅ Intent Classifier quantized successfully."
+else
+    echo "⚠️ Source model for Intent Classifier not found. Skipping."
+fi
+
+
+# --- GGUF Model Quantization (e.g., Local LLM) ---
+# This requires the llama.cpp repository to be cloned and built.
+# The process typically involves converting a PyTorch model to GGUF format
+# and then quantizing it to a specific level (e.g., q4_0).
+echo "2/2: Quantizing Large Language Model to GGUF (q4_0)..."
+if [ -d "models/vendor/llama.cpp" ] && [ -f "models/source/oniria-llm-7b/consolidated.00.pth" ]; then
+    LLAMA_CPP_PATH="models/vendor/llama.cpp"
+    SOURCE_MODEL_PATH="models/source/oniria-llm-7b"
+    OUTPUT_MODEL_PATH="app/src/main/assets/models/oniria-llm-7b-q4_0.gguf"
+
+    # Step 1: Convert the base model to FP16 GGUF format
+    python3 "${LLAMA_CPP_PATH}/convert.py" "${SOURCE_MODEL_PATH}"
+
+    # Step 2: Quantize the FP16 model to Q4_0
+    "${LLAMA_CPP_PATH}/quantize" \
+        "${SOURCE_MODEL_PATH}/ggml-model-f16.gguf" \
+        "${OUTPUT_MODEL_PATH}" \
+        "q4_0"
+
+    echo "✅ Large Language Model quantized successfully."
+else
+    echo "⚠️ llama.cpp or source LLM not found. Skipping GGUF quantization."
+fi
+
+
+echo "🎉 Model quantization finished."

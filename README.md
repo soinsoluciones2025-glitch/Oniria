@@ -1,165 +1,124 @@
----
+# OnirIA v5.0: Technical Master Document (Web Edition)
 
-OnirIA 4.3 — Comunicador Asistivo Multimodal y Clínico
-
-Versión: 4.3
-Plataforma: Android / Web híbrido (opcional)
-Orientación: Clínico, rehabilitación, comunicación asistiva
-Tecnologías: Kotlin, Jetpack Compose, React (Web fallback), MediaPipe, BCI, Gemini AI, TFLite, GGML
-Objetivo: Permitir comunicación completa a personas con dificultades de habla o movilidad, integrando gestos, voz, EEG/BCI y predicción de intención mental.
-
+**Version:** 5.0 ("Claridad Universal")
+**Status:** In Development
+**Stack:** React, TypeScript, Vite, Web Speech API, Google Gemini API
+**Primary Audience:** Development and Maintenance Teams
 
 ---
 
-## Descripción General
+## 1. Introduction
 
-OnirIA 4.3 es un sistema avanzado de comunicación asistiva diseñado para usuarios con ACV, parálisis, disfagia u otras limitaciones de movilidad o habla. Combina múltiples canales de interacción:
+This document provides a complete technical blueprint for the OnirIA v5.0 web application. It serves as the single source of truth for understanding the system's architecture, its components, and its core functionalities.
 
-- **Voz a texto / texto a voz**
-- **Gestos faciales y manuales**
-- **BCI / EEG para predicción de intención mental**
-- **Asistente de IA para mejorar la expresión textual**
-
-La arquitectura está preparada para un uso clínico experimental, priorizando privacidad y local-first.
+OnirIA v5.0 is a cutting-edge, browser-based, multimodal assistive communicator. It is designed to be a fully responsive Progressive Web App (PWA) that works seamlessly across devices, with a strong focus on accessibility, offline-first capabilities where possible, and user privacy.
 
 ---
 
-## Características Clave
+## 2. Core Architectural Principles
 
-### 1. Comunicación por Voz
-- Reconocimiento de voz en tiempo real.
-- Texto a voz configurable, con voces y velocidad ajustables.
-- Historial de frases recientes.
-
-### 2. Control por Gestos
-- MediaPipe Holistic analiza rostro y cuerpo en tiempo real.
-- Gestos iniciales:
-  - **Sonrisa:** "Estoy feliz"
-  - **Boca abierta:** "Tengo hambre o sed"
-  - **Mano levantada:** "Necesito ayuda"
-  - **Pulgar arriba:** "Sí, de acuerdo"
-  - **Palma abierta:** "No, por favor detente"
-- Gestos mantenidos por ≥1.5s activan TTS automático.
-
-### 3. Predicción BCI / Intención Mental
-- Detecta intención de confirmación o rechazo mediante señales EEG.
-- Combina datos de gestos y voz para mayor robustez.
-- Registro seguro local-first, cifrado AES.
-
-### 4. Asistente de IA
-- Integra API Gemini (cloud) o LLM local (GGML/TFLite) según disponibilidad.
-- Sugerencias de frases completas, empáticas o simplificadas.
-- Botón "AI Assist" para mejorar texto antes de TTS.
-
-### 5. Interfaz de Usuario Accesible
-- Botones grandes, alto contraste, navegación clara.
-- Feedback visual y auditivo constante: escucha activa, detección de gestos, procesamiento de IA.
-- Pantalla "Tutor" interactiva para guiar al usuario.
-
-### 6. Persistencia y Configuración
-- Guardado local de preferencias: voz, velocidad, temas.
-- Sincronización opcional con backend seguro.
-- Preparado para auditoría clínica y pruebas controladas.
+1.  **Component-Based & Reactive:** Built with React, the UI is a composition of modular, reusable, and stateful components. State changes drive UI updates automatically.
+2.  **Browser-Native Power:** Leverages powerful, built-in browser APIs like the Web Speech API (`SpeechSynthesis` and `SpeechRecognition`) for core real-time functionalities, reducing dependency on external libraries.
+3.  **Intelligent Services:** Integrates with the Google Gemini API for advanced AI-powered text manipulation, providing features that go beyond simple communication.
+4.  **Accessibility First (A11y):** Designed from the ground up to be accessible, using semantic HTML, ARIA attributes, high-contrast themes, and large, touch-friendly targets.
+5.  **State Management:** Utilizes React hooks (`useState`, `useContext`, `useEffect`) for efficient and localized state management. Global state is lifted to the main `App` component as needed.
 
 ---
 
-## Arquitectura Modular
+## 3. System Architecture & Data Flow
 
-Módulos principales:
-- **perception:** cámara, gestos, face mesh, BCI
-- **intention:** fusión multimodal → intención del usuario
-- **execution:** acciones de salida (voz, vibración, pantalla)
-- **expression:** TTS local + cloud opcional
-- **storage:** base local cifrada, logs, configuración
-- **sync:** backup seguro y conectores cloud
-- **models:** LLM, STT, TTS, intent classifier, BCI classifier
+The application is structured around a clear separation of concerns: Components (UI), Hooks (Logic), and Services (External APIs).
 
-Estructura de carpetas recomendada:
-```
-src/
-├─ screens/       # MainScreen, CommunicationScreen, TutorScreen, SettingsScreen, GestureScreen
-├─ components/    # Botones, Spinner, Barra de navegación
-├─ hooks/         # usePersistentState.ts, useSpeech.ts, useBCI.ts
-├─ utils/         # gestureDetection.ts, BCIProcessing.ts
-├─ services/      # geminiService.ts, TTSService.ts
-├─ models/        # LLM, STT, TTS, BCI classifier
-├─ scripts/       # prepare_release.sh, quantize_models.sh
-└─ App.tsx
+```mermaid
+graph TD
+    subgraph BROWSER_APIs [Browser APIs]
+        A[Web Speech API: SpeechRecognition]
+        B[Web Speech API: SpeechSynthesis]
+    end
+
+    subgraph REACT_APP [OnirIA React Application]
+        subgraph COMPONENTS [UI Components]
+            C(App.tsx) --> D(Header.tsx);
+            C --> E(CommunicationScreen.tsx);
+            C --> F(SettingsScreen.tsx);
+            C --> G(TutorScreen.tsx);
+            E --> H(LargeButton.tsx);
+            E --> I(LoadingSpinner.tsx);
+        end
+
+        subgraph HOOKS [Reusable Logic]
+            J[useSpeech.ts]
+        end
+
+        subgraph SERVICES [External Communication]
+            K[geminiService.ts]
+        end
+    end
+
+    subgraph EXTERNAL_SERVICES [Cloud Services]
+        L[Google Gemini API]
+    end
+
+    %% Connections
+    A --> J;
+    B --> J;
+    J --> E;
+    K --> L;
+    E --> K;
+    F --> C;
+    D --> C;
+
 ```
 
----
+### Module Breakdown:
 
-## Roadmap de Desarrollo y Test
+-   **Components (`/components`):**
+    -   `App.tsx`: The root component. Manages global state (like the current screen and feature toggles) and renders the appropriate screen.
+    -   `CommunicationScreen.tsx`: The core interface for user communication. Hosts the text area, action buttons, and conditionally renders the Auditory Accessibility Mode UI.
+    -   `SettingsScreen.tsx`: Allows users to configure application settings, such as enabling/disabling feature modules.
+    -   `Header.tsx`: Provides consistent navigation across the application.
+    -   `LargeButton.tsx`: A reusable, accessible button component for primary actions.
 
-1.  **PASS1:** Crear estructura, módulos, pseudocódigo, JSON UI schema, module.json.
-2.  **PASS2:** Compilar debug, ejecutar tests unitarios e instrumentados, generar report_build.json parcial.
-3.  **PASS3:** Optimización y quantización de modelos, tests finales, APK release firmado, report_build.json final.
+-   **Hooks (`/hooks`):**
+    -   `useSpeech.ts`: A powerful custom hook that encapsulates the entire Web Speech API. It provides a simple interface for speech-to-text (listening) and text-to-speech (speaking), managing permissions and browser compatibility quirks.
 
-**Tests clínicos:**
-- Registro de gestos, audio, EEG, intención detectada y acción ejecutada.
-- Latencia y corrección supervisada.
-- Exportación cifrada para análisis clínico.
-
----
-
-## Scripts Clave
-
-**quantize_models.sh**
-```bash
-#!/usr/bin/env bash
-set -e
-echo "Quantizing models..."
-python3 models/conversion_scripts/to_tflite.py --input models/intent.onnx --output models/intent.tflite --quantize int8
-# GGML conversion for LLMs
-echo "Done."
-```
-
-**prepare_release.sh**
-```bash
-#!/usr/bin/env bash
-set -e
-echo "Running tests..."
-./gradlew test
-echo "Quantizing models..."
-bash scripts/quantize_models.sh
-echo "Assembling release..."
-./gradlew assembleRelease
-echo "Sign & align steps here (keystore placeholder)."
-echo "Release artifact: app/build/outputs/apk/release/app-release.apk"
-```
+-   **Services (`/services`):**
+    -   `geminiService.ts`: Manages all communication with the Google Gemini API. It abstracts away the API key and request/response logic, providing simple functions for AI-powered text correction and rephrasing.
 
 ---
 
-## Seguridad y Privacidad
+## 4. Feature Modules
 
-- Claves de API nunca expuestas en frontend.
-- Todos los datos locales cifrados con AES-256.
-- Consentimiento explícito para BCI, cámara y micrófono.
-- Cumplimiento GDPR / HIPAA según región.
-- Política de privacidad clara y exportación/eliminación de datos.
+### 4.1. Auditory Accessibility Module (AAM)
+-   **Purpose:** To assist users with hearing impairments by transcribing ambient speech to text in real-time.
+-   **Core Components:** `useSpeech.ts`, `SettingsScreen.tsx`, `CommunicationScreen.tsx`.
+-   **Status: Phase 1 (Real-time transcription) is IMPLEMENTED.**
+-   **Functionality:** When enabled in Settings, the `CommunicationScreen` switches to a high-contrast view. The `useSpeech` hook is activated in continuous listening mode, and the transcribed text is displayed in a large, readable font.
 
----
+### 4.2. Literacy and Composition Assistance Module (ACAL)
+-   **Purpose:** To empower users with writing difficulties through AI-powered assistance.
+-   **Core Components:** `geminiService.ts`, `CommunicationScreen.tsx`.
+-   **Status: Phase 1 (Intelligent Correction) is IMPLEMENTED.**
+-   **Functionality:** A user can type text with errors and press the "Corregir (IA)" button. The text is sent to the `geminiService` with a specialized prompt that instructs the Gemini model to correct the text while preserving the original intent.
 
-## Flujos Clínicos Ejemplares
-
-| Evento                  | Intención detectada   | Acción                     |
-| ----------------------- | --------------------- | -------------------------- |
-| Sonrisa                 | Felicidad             | "Estoy feliz" (TTS)        |
-| Boca abierta            | Hambre/Sed            | "Tengo hambre o sed" (TTS) |
-| EEG confirma “Sí”       | Confirmación          | Acción ejecutada           |
-| Gestos + BCI combinados | Intención reforzada   | TTS y acción visual        |
+### 4.3. Gesture and Tutor Modules
+-   **Status:** Planned. These modules will be implemented in future versions. `GestureScreen.tsx` and `TutorScreen.tsx` exist as placeholders.
 
 ---
 
-## Monetización
+## 5. Getting Started
 
-- **Gratis por defecto**
-- **Suscripción premium:** voces avanzadas, modelos cloud
-- **Licencias institucionales:** hospitales, centros de rehabilitación
-- **Ads éticos** solo con opt-in familiar/cuidador
+**Prerequisites:**
+-   Node.js (LTS version)
+-   npm or yarn
+-   A modern web browser (Chrome, Firefox, Edge)
 
----
-
-## Notas Finales
-
-OnirIA 4.3 es una plataforma integral de comunicación asistiva. La combinación de voz, gestos y BCI crea un canal multimodal sin precedentes, listo para uso clínico experimental y preparado para futuras integraciones con backend seguro, cloud AI y modelos on-device optimizados.
+**Setup:**
+1.  **Clone the repository.**
+2.  **Install dependencies:** `npm install`
+3.  **Set up environment variables:** Create a `.env.local` file in the root directory and add your Google Gemini API key:
+    ```
+    VITE_GEMINI_API_KEY=tu_api_key_aqui
+    ```
+4.  **Run the development server:** `npm run dev`
+5.  Open the provided URL in your browser.

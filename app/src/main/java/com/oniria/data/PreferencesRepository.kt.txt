@@ -1,0 +1,57 @@
+// Purpose: Provides a clean, reactive API for accessing user preferences.
+// This repository abstracts the implementation details of SharedPreferences,
+// exposing settings as Kotlin Flows so the UI layer can react to changes automatically.
+// Corresponds to the 'storage' layer in the OnirIA 4.5 architecture.
+package com.oniria.data
+
+import android.content.SharedPreferences
+import androidx.core.content.edit
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class PreferencesRepository @Inject constructor(
+    private val sharedPreferences: SharedPreferences
+) {
+
+    // A private mutable flow that holds the current state.
+    private val _isHearingModeEnabled = MutableStateFlow(
+        sharedPreferences.getBoolean(KEY_HEARING_MODE_ENABLED, false)
+    )
+
+    /**
+     * Publicly exposed, read-only Flow for observing the hearing mode setting.
+     */
+    val isHearingModeEnabled: Flow<Boolean> = _isHearingModeEnabled.asStateFlow()
+
+    private val _selectedVoiceId = MutableStateFlow(
+        sharedPreferences.getString(KEY_SELECTED_VOICE_ID, null)
+    )
+    val selectedVoiceId: Flow<String?> = _selectedVoiceId.asStateFlow()
+
+    /**
+     * Persists the new value for the hearing mode setting and updates the flow.
+     * @param isEnabled The new state for the hearing mode.
+     */
+    suspend fun setHearingMode(isEnabled: Boolean) {
+        sharedPreferences.edit {
+            putBoolean(KEY_HEARING_MODE_ENABLED, isEnabled)
+        }
+        _isHearingModeEnabled.value = isEnabled
+    }
+
+    suspend fun setVoice(voiceId: String) {
+        sharedPreferences.edit {
+            putString(KEY_SELECTED_VOICE_ID, voiceId)
+        }
+        _selectedVoiceId.value = voiceId
+    }
+
+    companion object {
+        const val KEY_HEARING_MODE_ENABLED = "hearing_mode_enabled"
+        const val KEY_SELECTED_VOICE_ID = "selected_voice_id"
+    }
+}

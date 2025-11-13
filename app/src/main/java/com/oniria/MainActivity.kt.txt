@@ -1,0 +1,70 @@
+
+
+// Purpose: The main and only Activity for the OnirIA application.
+// It serves as the entry point and the host for the entire Jetpack Compose UI.
+// It sets up the theme, navigation graph, and injects dependencies using Hilt.
+package com.oniria
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.oniria.modules.perception.GestureDetector
+import com.oniria.ui.screens.CommunicationScreen
+import com.oniria.ui.screens.GestureScreen
+import com.oniria.ui.screens.SettingsScreen
+import com.oniria.ui.screens.TutorScreen
+import com.oniria.ui.theme.OniriaTheme
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+
+    // Hilt will provide the singleton instance of GestureDetector
+    @Inject
+    lateinit var gestureDetector: GestureDetector
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            OniriaTheme {
+                // A surface container using the 'background' color from the theme
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    AppNavigation(gestureDetector)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AppNavigation(gestureDetector: GestureDetector) {
+    val navController = rememberNavController()
+    // A real app would have a more complex NavHost with a bottom bar or navigation drawer.
+    NavHost(navController = navController, startDestination = "communication") {
+        composable("communication") {
+            CommunicationScreen()
+        }
+        composable("gestures") {
+            // Pass the singleton detector instance to the screen
+            GestureScreen(gestureDetector = gestureDetector)
+        }
+        composable("tutor") {
+            TutorScreen()
+        }
+        composable("settings") {
+            SettingsScreen()
+        }
+    }
+}

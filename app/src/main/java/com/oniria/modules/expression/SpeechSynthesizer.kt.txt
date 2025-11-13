@@ -1,0 +1,127 @@
+// Purpose: Encapsulates Android's native Text-to-Speech (TTS) engine.
+// This class provides a simple interface to synthesize speech from text,
+// manage the TTS lifecycle, and configure voice settings.
+// Corresponds to the 'expression' module in the OnirIA 4.5 architecture.
+package com.oniria.modules.expression
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
+import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import java.util.Locale
+
+class SpeechSynthesizer(
+    context: Context,
+    private val onReady: (Boolean) -> Unit
+) : TextToSpeech.OnInitListener {
+
+    private val tts: TextToSpeech = TextToSpeech(context, this)
+
+    private val _isSpeaking = MutableStateFlow(false)
+    val isSpeaking: StateFlow<Boolean> = _isSpeaking
+
+    private var isReady = false
+
+    init {
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                _isSpeaking.value = true
+            }
+
+            override fun onDone(utteranceId: String?) {
+                _isSpeaking.value = false
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                _isSpeaking.value = false
+            }
+        })
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            // Set Spanish as the default language.
+            val result = tts.setLanguage(Locale("es", "ES"))
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.e("SpeechSynthesizer", "Language not supported")
+                isReady = false
+                onReady(false)
+            } else {
+                Log.i("SpeechSynthesizer", "TTS Engine Initialized")
+                isReady = true
+                onReady(true)
+            }
+        } else {
+            Log.e("SpeechSynthesizer", "TTS Initialization failed with status: $status")
+            isReady = false
+            onReady(false)
+        }
+    }
+
+    /**
+     * Speaks the given text using the configured TTS engine.
+     * @param text The text to be synthesized.
+     */
+    fun speak(text: String) {
+        if (isReady && text.isNotBlank()) {
+            // Use a unique utterance ID for progress tracking
+            val utteranceId = this.hashCode().toString() + ""
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        } else {
+            Log.w("SpeechSynthesizer", "TTS not ready or text is empty.")
+        }
+    }
+
+    /**
+     * Stops the currently ongoing speech synthesis.
+     */
+    fun stop() {
+        if (isReady) {
+            tts.stop()
+            _isSpeaking.value = false
+        }
+    }
+
+    /**
+     * Sets the voice to be used for synthesis.
+     * @param voiceId The unique ID of the voice to use.
+     */
+    fun setVoice(voiceId: String) {
+        if (!isReady) return
+        try {
+            val voiceToSet = tts.voices.find { it.name == voiceId }
+            if (voiceToSet != null) {
+                tts.voice = voiceToSet
+                Log.i("SpeechSynthesizer", "Voice set to: ${voiceToSet.name}")
+            } else {
+                Log.w("SpeechSynthesizer", "Voice ID '$voiceId' not found.")
+            }
+        } catch (e: Exception) {
+            Log.e("SpeechSynthesizer", "Failed to set voice", e)
+        }
+    }
+
+    /**
+     * Returns a list of available voices for the current language.
+     */
+    fun getAvailableVoices(): List<Voice> {
+        return if (isReady) {
+            tts.voices.filter { it.locale.language == "es" }
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
+     * Shuts down the TTS engine to release resources. Should be called
+     * when the synthesizer is no longer needed (e.g., in onDestroy).
+     */
+    fun shutdown() {
+        tts.stop()
+        tts.shutdown()
+    }
+}

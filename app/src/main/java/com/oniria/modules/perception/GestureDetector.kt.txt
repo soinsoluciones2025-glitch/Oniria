@@ -1,0 +1,133 @@
+// Purpose: Implements real-time gesture detection for the native Android app.
+// This class sets up the camera using CameraX, feeds frames to a MediaPipe Gesture Recognizer,
+// and exposes the detected gestures as a Kotlin Flow for other modules to observe.
+// Corresponds to the 'perception' module in the OnirIA 4.5 architecture.
+package com.oniria.modules.perception
+
+import android.content.Context
+import android.util.Log
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.content.ContextCompat
+import com.google.mediapipe.framework.image.MPImage
+import com.google.mediapipe.tasks.vision.core.BaseOptions
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizer
+import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizerResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import androidx.lifecycle.LifecycleOwner
+
+// Represents a detected gesture. Using a sealed class for type safety.
+sealed class Gesture(val message: String) {
+    object Smile : Gesture("Estoy feliz")
+    object MouthOpen : Gesture("Tengo hambre o sed")
+    object HandRaised : Gesture("Necesito ayuda")
+    object ThumbUp : Gesture("Sí, está bien")
+    object PalmOpen : Gesture("No, por favor detente")
+    object None : Gesture("...")
+}
+
+class GestureDetector(private val context: Context) {
+
+    private var gestureRecognizer: GestureRecognizer? = null
+    private val backgroundExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val _lastGesture = MutableStateFlow<Gesture>(Gesture.None)
+
+    /**
+     * Publicly exposed Flow that emits the latest detected gesture.
+     */
+    val gestureFlow: Flow<Gesture> = _lastGesture
+
+    init {
+        setupGestureRecognizer()
+    }
+
+    private fun setupGestureRecognizer() {
+        val baseOptions = BaseOptions.builder().setModelAssetPath("gesture_recognizer.task").build()
+        val options = GestureRecognizer.GestureRecognizerOptions.builder()
+            .setBaseOptions(baseOptions)
+            .setRunningMode(RunningMode.LIVE_STREAM)
+            .setResultListener(this::onGestureResult)
+            .setErrorListener { error, _ ->
+                Log.e("GestureDetector", "MediaPipe Error: ${error.message}")
+            }
+            .build()
+        gestureRecognizer = GestureRecognizer.createFromOptions(context, options)
+    }
+
+    /**
+     * Starts the camera and the gesture detection process.
+     * @param lifecycleOwner The lifecycle owner (e.g., an Activity or Fragment) to bind the camera to.
+     */
+    fun startDetection(lifecycleOwner: LifecycleOwner) {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            val cameraSelector = CameraSelector.Builder()
+                .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
+                .build()
+
+            val imageAnalysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+                .also {
+                    it.setAnalyzer(backgroundExecutor, this::analyzeImage)
+                }
+
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, imageAnalysis)
+            } catch (exc: Exception) {
+                Log.e("GestureDetector", "Camera binding failed", exc)
+            }
+
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    /**
+     * Analyzes a single camera frame with MediaPipe.
+     */
+    private fun analyzeImage(imageProxy: ImageProxy) {
+        val frameTime = System.currentTimeMillis()
+        val mpImage = MPImage(imageProxy)
+        
+        gestureRecognizer?.recognizeAsync(mpImage, frameTime)
+        
+        // It's crucial to close the imageProxy to keep receiving frames.
+        imageProxy.close()
+    }
+
+    /**
+     * Callback that receives the results from the MediaPipe Gesture Recognizer.
+     */
+    private fun onGestureResult(result: GestureRecognizerResult, image: MPImage) {
+        val topGesture = result.gestures().firstOrNull()?.firstOrNull()?.categoryName()
+        
+        val detectedGesture = when (topGesture) {
+            "Thumb_Up" -> Gesture.ThumbUp
+            "Open_Palm" -> Gesture.PalmOpen
+            "Pointing_Up" -> Gesture.HandRaised // Assuming pointing up is "help"
+            // Note: Facial gestures would require a FaceLandmarker model.
+            // This is a placeholder to fulfill the requirement.
+            else -> Gesture.None 
+        }
+
+        // Emit the new gesture if it's different from the last one.
+        if (_lastGesture.value::class != detectedGesture::class) {
+            _lastGesture.value = detectedGesture
+        }
+    }
+
+    /**
+     * Stops the detection and releases resources.
+     */
+    fun stopDetection() {
+        backgroundExecutor.shutdown()
+        gestureRecognizer?.close()
+    }
+}
