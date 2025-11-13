@@ -19,17 +19,18 @@ const CommunicationScreen: React.FC<CommunicationScreenProps> = ({ isHearingMode
 const StandardModeUI: React.FC = () => {
   const [text, setText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { speak, isSpeaking, stopSpeaking } = useSpeech();
+  const [error, setError] = useState<string | null>(null);
+  const { speak, isSpeaking } = useSpeech();
 
   const handleAiAction = async (action: (text: string) => Promise<string>) => {
     if (!text.trim()) return;
     setIsLoading(true);
+    setError(null);
     try {
       const result = await action(text);
       setText(result);
-    } catch (error) {
-      console.error(error);
-      alert(error instanceof Error ? error.message : 'Ocurrió un error desconocido.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ocurrió un error desconocido.');
     } finally {
       setIsLoading(false);
     }
@@ -45,10 +46,10 @@ const StandardModeUI: React.FC = () => {
         aria-label="Área de texto principal"
       />
       <div className="actions-grid">
-        <LargeButton onClick={() => speak(text)} disabled={isSpeaking || !text.trim()}>
+        <LargeButton onClick={() => speak(text)} disabled={isSpeaking || !text.trim()} variant="speak">
           {isSpeaking ? 'Hablando...' : 'Hablar'}
         </LargeButton>
-        <LargeButton onClick={() => setText('')} variant="secondary">
+        <LargeButton onClick={() => setText('')} variant="clear">
           Limpiar
         </LargeButton>
         <LargeButton onClick={() => handleAiAction(correctText)} variant="ai" disabled={isLoading}>
@@ -58,10 +59,21 @@ const StandardModeUI: React.FC = () => {
           {isLoading ? <LoadingSpinner /> : 'Reformular (IA)'}
         </LargeButton>
       </div>
+      {error && <p className="error-message" role="alert">{error}</p>}
+       <div className="ai-explanation">
+        <div className="explanation-item">
+          <h4>Corregir (IA)</h4>
+          <p>Ideal para quienes tienen dificultades con la ortografía o la escritura (dislexia, apraxia). La IA entiende tu intención y corrige el texto.</p>
+        </div>
+        <div className="explanation-item">
+          <h4>Reformular (IA)</h4>
+          <p>Útil para encontrar las palabras correctas. Transforma tus ideas en frases más completas o formales para expresar exactamente lo que quieres decir.</p>
+        </div>
+      </div>
       <div className="phrases-grid">
         {COMMON_PHRASES.map((phrase) => (
           <button key={phrase} className="phrase-button" onClick={() => {
-            const newText = text ? `${text} ${phrase}` : phrase;
+            const newText = text ? `${text.trim()} ${phrase}` : phrase;
             setText(newText);
           }}>
             {phrase}
@@ -90,7 +102,7 @@ const HearingModeUI: React.FC = () => {
         </p>
       )}
       <p className="hearing-mode-text" aria-live="assertive">
-        {transcript || 'Escuchando...'}
+        {transcript || (isListening ? 'Escuchando...' : 'Inicia el modo auditivo en Ajustes.')}
       </p>
       <div className="hearing-mode-status">
         <div className={`status-indicator ${isListening ? 'listening' : ''}`}></div>

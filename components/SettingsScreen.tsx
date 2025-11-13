@@ -12,7 +12,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ isHearingModeEnabled, o
       <div className="setting-item">
         <div className="setting-text">
           <h3>Modo de Accesibilidad Auditiva</h3>
-          <p>Traduce la voz del entorno a texto en tiempo real. Requiere permiso para usar el micrófono.</p>
+          <p>Perfecto para personas con dificultades auditivas. Escucha las conversaciones a tu alrededor y las muestra como texto en la pantalla para que no te pierdas de nada.</p>
         </div>
         <div className="setting-control">
            <label className="switch">

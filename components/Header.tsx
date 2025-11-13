@@ -10,7 +10,6 @@ const NAV_ITEMS: { id: Screen; label: string }[] = [
   { id: 'communication', label: 'Comunicación' },
   { id: 'gestures', label: 'Gestos' },
   { id: 'tutor', label: 'Tutor' },
-  { id: 'settings', label: 'Ajustes' },
 ];
 
 const Header: React.FC<HeaderProps> = ({ currentScreen, onNavigate }) => {
@@ -28,6 +27,15 @@ const Header: React.FC<HeaderProps> = ({ currentScreen, onNavigate }) => {
             {item.label}
           </button>
         ))}
+         <button
+            key='settings'
+            onClick={() => onNavigate('settings')}
+            className={`nav-button nav-button-settings ${currentScreen === 'settings' ? 'active' : ''}`}
+            aria-current={currentScreen === 'settings' ? 'page' : undefined}
+            aria-label="Ajustes"
+          >
+            Ajustes
+          </button>
       </nav>
     </header>
   );

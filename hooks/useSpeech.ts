@@ -1,17 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 
-// Fix: Add type definitions for the Web Speech API to fix TypeScript errors.
+// Type definitions for the Web Speech API
 interface SpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
   start(): void;
   stop(): void;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
 }
 
 interface SpeechRecognitionEvent extends Event {
   readonly resultIndex: number;
   readonly results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+    readonly error: string;
+    readonly message: string;
 }
 
 interface SpeechRecognitionResultList {
@@ -34,7 +42,6 @@ interface SpeechRecognitionAlternative {
 
 
 const getSpeechRecognition = () => {
-  // Fix: Property 'SpeechRecognition' and 'webkitSpeechRecognition' do not exist on type 'Window'.
   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   return SpeechRecognition ? new SpeechRecognition() : null;
 };
@@ -43,7 +50,6 @@ export const useSpeech = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState('');
-  // Fix: Cannot find name 'SpeechRecognition'. Use the interface defined above.
   const recognitionRef = useRef<SpeechRecognition | null>(getSpeechRecognition());
 
   useEffect(() => {
@@ -57,7 +63,6 @@ export const useSpeech = () => {
     recognition.interimResults = true;
     recognition.continuous = true;
 
-    // Fix: Cannot find name 'SpeechRecognitionEvent'. Use the interface defined above.
     const handleResult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -78,13 +83,20 @@ export const useSpeech = () => {
         setIsListening(false);
       }
     };
+
+    const handleError = (event: SpeechRecognitionErrorEvent) => {
+        console.error('Speech recognition error:', event.error, event.message);
+        setIsListening(false);
+    };
     
-    recognition.addEventListener('result', handleResult as EventListener);
-    recognition.addEventListener('end', handleEnd);
+    recognition.onresult = handleResult;
+    recognition.onend = handleEnd;
+    recognition.onerror = handleError;
 
     return () => {
-      recognition.removeEventListener('result', handleResult as EventListener);
-      recognition.removeEventListener('end', handleEnd);
+      recognition.onresult = null;
+      recognition.onend = null;
+      recognition.onerror = null;
       recognition.stop();
     };
   }, [isListening]);
@@ -92,8 +104,13 @@ export const useSpeech = () => {
   const startListening = () => {
     if (recognitionRef.current && !isListening) {
       setTranscript('');
-      recognitionRef.current.start();
-      setIsListening(true);
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+        setIsListening(false);
+      }
     }
   };
 
@@ -114,7 +131,10 @@ export const useSpeech = () => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'es-ES';
       utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      utterance.onerror = () => {
+        console.error("Speech synthesis error");
+        setIsSpeaking(false);
+      };
       window.speechSynthesis.cancel(); // Cancel any previous speech
       window.speechSynthesis.speak(utterance);
     }
